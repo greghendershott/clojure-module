@@ -11,7 +11,7 @@
 
 (defonce def-forms #{'def 'defn 'defmacro})
 
-(defn- definition-id [form]
+(defn definition-id [form]
   (and (seq form)
        (>= (count form) 2) ;; FIXME: throw error if `(def id)` ?
        (contains? def-forms (first form))
@@ -26,7 +26,6 @@
     (do
       (when (contains? set id)
         (redefinition-error id))
-      (declare id)
       (conj set id))
     set))
 
@@ -58,13 +57,18 @@
      (println "Expanding module" '~name)
      (in-ns '~name)
      (refer '~base)
-     (let [old-set# (or (get *module-registry* '~name) #{})
+     ;; First pass: `declare` all definition identifiers.
+     (declare ~@(filter identity (map definition-id forms)))
+     ;; Second pass: Build new set of identifiers; detect
+     ;; redefinitions and undefinitions.
+     (let [old-set# (or (get module.core/*module-registry* '~name) #{})
            new-set# (reduce module-body #{} (quote ~forms))]
        ;; FIXME: old-set# always seems to be empty, therefore the
        ;; unmaps are never happening.
+       (println old-set# new-set#)
        (doseq [x# (clojure.set/difference old-set# new-set#)]
          (println "Unmapping disappeared definition" x#)
-         (ns-unmap *ns* x#))
+         (ns-unmap '~name x#))
        (dosync (commute @#'*module-registry* assoc '~name new-set#))
        nil)
      ~@forms
@@ -79,12 +83,16 @@
   '(module mod-name clojure.core
            (def x 10)
            (def y 10)
-           (def z 42))))
+           (def z 42)
+           (defn g [] (f))
+           (defn f [] 42))))
 
 ;; Example actual usage:
 
 (module mod clojure.core
         (def x 10)
         (def y 20)
-        (def z 42))
+        (def z 42)
+        (defn g [] (f))
+        (defn f [] 42))
 ;; (ns-publics (find-ns 'mod))
