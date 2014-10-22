@@ -93,11 +93,20 @@
            (defn f [] 42))))
 
 ;; Example actual usage:
-
+;;
+;; Note: To see the redefinition-is-an-error feature, simply duplicate
+;; e.g. `(def x 10)` below.
+;;
+;; Note: To see the "undefinition" feature:
+;; 1. C-c C-k this once.
+;; 2. Comment out the `(def z 42)`.
+;; 3. C-c C-k again. Note the debug messsage.
+;; 4. Type `z` in the REPL. You get a proper error, not the value of a
+;;    "ghost" `z` still hanging around in the environment.
 (module mod clojure.core
         (def x 10)
         (def y 20)
         (def z 42)
-        (defn g [] (f))
+        (defn g [] (f)) ;forward reference without needing `declare`: yay
         (defn f [] 42))
 ;; (ns-publics (find-ns 'mod))
