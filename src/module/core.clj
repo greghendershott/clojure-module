@@ -1,12 +1,10 @@
-(ns module.core)
+(ns module.core
+  (require clojure.set))
 
 ;;; A toy module system for Clojure.
 
-(require 'clojure.set)
-
 (defonce ^:dynamic
-  ^{;;:private true
-    :doc "A ref to a map of module names to sets of identifiers."}
+  ^{:doc "A ref to a map of module names to sets of identifiers."}
   *module-registry* (ref {}))
 
 (defonce def-forms #{'def 'defn 'defmacro})
@@ -20,8 +18,15 @@
 (defn- redefinition-error [id]
   (throw (Exception. (str "Redefinition of `" id "'"))))
 
+(defn debug-println
+  "Probably there's a proper logging facility in Clojure I should be
+  using. But for now, simply use this, and comment out the actual call
+  to println to disable debug prints."
+  [& args]
+  (apply println args))
+
 (defn module-body [set form]
-  (println "expand-module-body-form " form)
+  (debug-println "expand-module-body-form " form)
   (if-let [id (definition-id form)]
     (do
       (when (contains? set id)
@@ -54,22 +59,22 @@
   multiple modules i.e. namespaces."
   [name base & forms]
   `(do
-     (println "Expanding module" '~name)
+     (debug-println "Expanding module" '~name)
      (in-ns '~name)
      (refer '~base)
      ;; First pass: `declare` all definition identifiers.
      (declare ~@(filter identity (map definition-id forms)))
      ;; Second pass: Build new set of identifiers; detect
      ;; redefinitions and undefinitions.
-     (let [old-set# (or (get module.core/*module-registry* '~name) #{})
+     (let [old-set# (or (get @module.core/*module-registry* '~name) #{})
            new-set# (reduce module-body #{} (quote ~forms))]
-       ;; FIXME: old-set# always seems to be empty, therefore the
-       ;; unmaps are never happening.
-       (println old-set# new-set#)
+       (debug-println old-set# new-set#)
        (doseq [x# (clojure.set/difference old-set# new-set#)]
-         (println "Unmapping disappeared definition" x#)
+         (debug-println "Unmapping disappeared definition" x#)
          (ns-unmap '~name x#))
-       (dosync (commute @#'*module-registry* assoc '~name new-set#))
+       (dosync (commute @#'module.core/*module-registry*
+                        assoc
+                        '~name new-set#))
        nil)
      ~@forms
      (in-ns 'user)
